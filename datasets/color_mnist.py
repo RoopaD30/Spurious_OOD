@@ -1,6 +1,7 @@
 """
 Color MNIST Dataset. Adapted from https://github.com/clovaai/rebias
 """
+# test
 import os
 import numpy as np
 from PIL import Image
@@ -12,6 +13,10 @@ from torchvision import transforms
 from torchvision.datasets import MNIST
 from torch.utils.data.distributed import DistributedSampler
 from utils import UnNormalize
+
+import cv2
+from tqdm import tqdm
+
 
 class BiasedMNIST(MNIST):
     """A base class for Biased-MNIST.
@@ -46,12 +51,10 @@ class BiasedMNIST(MNIST):
         all colours for each class. However, you can make the problem harder by setting smaller n_confusing_labels, e.g., 2.
         We suggest to researchers considering this benchmark for future researches.
     """
-
     COLOUR_MAP1 = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [225, 225, 0], [225, 0, 225],
-                  [255, 0, 0], [255, 0, 0],[255, 0, 0], [255, 0, 0], [255, 0, 0]]
+                   [255, 0, 0], [255, 0, 0], [255, 0, 0], [255, 0, 0], [255, 0, 0]]
     COLOUR_MAP2 = [[128, 0, 255], [255, 0, 128], [0, 0, 255], [225, 225, 0], [225, 0, 225],
-                  [255, 0, 0], [255, 0, 0],[0, 255, 0], [0, 255, 0], [0, 255, 0]] 
-
+                   [255, 0, 0], [255, 0, 0], [0, 255, 0], [0, 255, 0], [0, 255, 0]]
 
     def __init__(self, root, cmap, train=True, transform=None, target_transform=None,
                  download=False, data_label_correlation=1.0, n_confusing_labels=9, partial=False):
@@ -107,10 +110,9 @@ class BiasedMNIST(MNIST):
 
         n_samples = len(indices)    
         n_correlated_samples = int(n_samples * self.data_label_correlation)
-        n_decorrelated_per_class = int(np.ceil((n_samples - n_correlated_samples) / (self.n_confusing_labels)))
+        n_decorrelated_per_class = int(np.ceil(np.abs((n_samples - n_correlated_samples)) / (self.n_confusing_labels)))
         correlated_indices = indices[:n_correlated_samples]
         bias_indices[label] = torch.cat([bias_indices[label], correlated_indices])
-
         decorrelated_indices = torch.split(indices[n_correlated_samples:], n_decorrelated_per_class)
         if self.Partial:
             other_labels = [_label % 2 for _label in range(label + 1, label + 1 + self.n_confusing_labels)]
@@ -121,6 +123,18 @@ class BiasedMNIST(MNIST):
         for idx, _indices in enumerate(decorrelated_indices): 
             _label = other_labels[idx] 
             bias_indices[_label] = torch.cat([bias_indices[_label], _indices])
+
+    def store_data(self, data, targets, biased_targets):
+        target_dir = f"color_MNIST_{cmap}/r_{r}"
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+        print(data.shape)
+        exit()
+        for item_index in tqdm(range(data.shape[0])):
+            X = data[item_index, :, :, :].cpu().detach().numpy()
+            cv2.imwrite(os.path.join(target_dir, f"color_mnist_{item_index}.png"), X)
+        np.save(os.path.join(target_dir, "targets.npy"), targets)
+        np.save(os.path.join(target_dir, "biased_targets.npy"), biased_targets)
 
     def build_biased_mnist(self):
         """Build biased MNIST.
@@ -139,11 +153,12 @@ class BiasedMNIST(MNIST):
         biased_targets = []
 
         for bias_label, indices in bias_indices.items():
-            _data, _targets = self._make_biased_mnist(indices, bias_label, self.cmap) 
+            _data, _targets = self._make_biased_mnist(indices, bias_label, self.cmap)
             data = torch.cat([data, _data])
-            targets = torch.cat([targets, _targets]) 
+            targets = torch.cat([targets, _targets])
             biased_targets.extend([bias_label] * len(indices))
 
+        self.store_data(data, targets, biased_targets)
         biased_targets = torch.LongTensor(biased_targets)
         return data, targets, biased_targets
 
@@ -181,7 +196,7 @@ class ColourBiasedMNIST(BiasedMNIST):
         bg_data = torch.zeros_like(data)
         bg_data[data == 0] = 1
         bg_data[data != 0] = 0
-        bg_data = torch.stack([bg_data, bg_data, bg_data], dim=3) 
+        bg_data = torch.stack([bg_data, bg_data, bg_data], dim=3)
         bg_data = bg_data * torch.ByteTensor(colour) 
         bg_data = bg_data.permute(0, 3, 1, 2)
 
@@ -193,11 +208,12 @@ class ColourBiasedMNIST(BiasedMNIST):
             label = self.COLOUR_MAP1[label]
         elif cmap == "2":
             label = self.COLOUR_MAP2[label]
-
+        X = self._binary_to_colour(self.data[indices], label)
+        y = self.targets[indices]
         return self._binary_to_colour(self.data[indices], label), self.targets[indices]
 
 
-def get_biased_mnist_dataloader(args, root, batch_size, data_label_correlation, cmap,
+def get_biased_mnist_dataloader(root, batch_size, data_label_correlation, cmap,
                                 n_confusing_labels=9, train=True, partial=False):
     kwargs = {'pin_memory': False, 'num_workers': 8, 'drop_last': True}
     transform = transforms.Compose([
@@ -207,6 +223,12 @@ def get_biased_mnist_dataloader(args, root, batch_size, data_label_correlation, 
     dataset = ColourBiasedMNIST(root, train=train, transform=transform,
                                 download=True, data_label_correlation=data_label_correlation*2,
                                 n_confusing_labels=n_confusing_labels, partial=partial, cmap = cmap)
-    dataloader = data.DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True, **kwargs)
-    
-    return dataloader
+    # dataloader = data.DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True, **kwargs)
+
+    # return dataloader
+
+if __name__ == '__main__':
+    cmap = "2"
+    r = 0.25
+    root = '/nobackup/dyah_roopa/temp/Spurious_OOD/datasets/ood_datasets/mnist_png/training'
+    get_biased_mnist_dataloader(root, batch_size = 32, data_label_correlation=r, cmap = cmap)

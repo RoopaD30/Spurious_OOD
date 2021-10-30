@@ -8,3 +8,14 @@
 *.DS_Store
 *.pyc
 *.npy
+datasets/celebA/celebA/
+datasets/celebA/celebA_ood/
+datasets/celebA/img_align_celeba/
+datasets/celebA/train/
+datasets/color_MNIST/
+datasets/random_copy.py
+datasets/random_samples/
+datasets/test.png
+test_celebA.png
+datasets/._test.png
+datasets/.idea/

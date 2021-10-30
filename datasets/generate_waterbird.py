@@ -7,8 +7,10 @@ from tqdm import tqdm
 from dataset_utils import crop_and_resize, combine_and_mask
 
 ################ Paths and other configs - Set these #################################
-cub_dir = '/nobackup-slow/dataset/CUB_200_2011'
-places_dir = '/nobackup-slow/dataset/places365_standard'
+#cub_dir = '/nobackup-slow/dataset/CUB_200_2011'
+cub_dir = '/nobackup/dyah_roopa/Spurious_OOD/datasets/ood_datasets/CUB'
+#places_dir = '/nobackup-slow/dataset/places365_standard'
+places_dir = '/nobackup/dyah_roopa/Spurious_OOD/datasets/ood_datasets/data_256'
 output_dir = 'datasets/'
 
 target_places = [

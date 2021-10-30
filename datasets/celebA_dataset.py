@@ -7,6 +7,8 @@ import torchvision.transforms as transforms
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.distributed import DistributedSampler
+from torchvision.utils import save_image
+import cv2
 
 # Ignore warnings
 import warnings
@@ -76,8 +78,9 @@ class celebADataset(Dataset):
             'img_align_celeba',
             self.filename_array[idx])
         img = Image.open(img_filename).convert('RGB')
-        img = self.transform(img)
-
+        store_data(img, idx)
+        # img = self.transform(img)
+        # print('IMG', img.shape)
         return img, y, self.env_dict[(y, gender)]
 
 
@@ -93,6 +96,7 @@ class celebAOodDataset(Dataset):
 
         self.filename_array = self.metadata_df['image_id'].values
         self.transform = get_transform_cub(train=False)
+        print('constructor')
 
     def __len__(self):
         return len(self.filename_array)
@@ -102,9 +106,9 @@ class celebAOodDataset(Dataset):
             self.dataset_dir,
             'img_align_celeba',
             self.filename_array[idx])
-        img = Image.open(img_filename).convert('RGB')
-        img = self.transform(img)
-
+        img = np.array(Image.open(img_filename).convert('RGB'))
+        # img = self.transform(img)
+        # store_data(img, idx)
         return img, img
 
 
@@ -151,12 +155,27 @@ def get_celebA_dataloader(args, split):
 def get_celebA_ood_dataloader(args):
     kwargs = {'pin_memory': True, 'num_workers': 8, 'drop_last': True}
     dataset = celebAOodDataset()
+    print(dataset)
+    for idx,data in enumerate(dataset):
+        # print(data[0].shape)
+        store_data(np.array(data[0]),idx)
     dataloader = DataLoader(dataset=dataset,
                                 batch_size=args.ood_batch_size,
                                 shuffle=True,
                                 **kwargs)
+    print('dataloader', dataloader)
     return dataloader
 
+def store_data(data, idx):
+    target_dir = ""
+    print('halo')
+    # data = data.permute(0,2,3,1)
+    # # print(data.shape)
+    # for item_index in range(data.shape[0]):
+        # X = data[item_index, :, :, :].cpu().detach().numpy()
+        #print(X.shape)
+        #X.permute(0, 2, 3, 1)
+    cv2.imwrite('/nobackup/dyah_roopa/temp/Spurious_OOD/datasets/celebA/celebA_ood/celebA_img{}.png'.format(idx), data)
 
 if __name__ == "__main__":
     import argparse
@@ -165,7 +184,14 @@ if __name__ == "__main__":
                     help='mini-batch size (default: 64) used for training')
     parser.add_argument('--ood-batch-size', default= 64, type=int,
                     help='mini-batch size (default: 400) used for testing')
+    parser.add_argument('--data_label_correlation', default= 0.8, type=float,
+                    help='correlation for data label')
     args = parser.parse_args()
 
-    dataloader = get_celebA_dataloader(args, split='train')
-    ood_dataloader = get_celebA_ood_dataloader(args)
+    dataloader = get_celebA_ood_dataloader(args)
+    # for idx, data in enumerate(dataloader):
+        # print(data)
+        # store_data(data,idx)
+        # break
+        # save_image(data, '/nobackup/dyah_roopa/temp/Spurious_OOD/datasets/celebA/train/celebA_img{}'.format(idx))
+    # ood_dataloader = get_celebA_ood_dataloader(args)
